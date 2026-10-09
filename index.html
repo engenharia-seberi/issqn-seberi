@@ -16,7 +16,7 @@
 
   /* ---------- barra do app ---------- */
   .barra { background: var(--papel); border-bottom: 3px solid var(--verde); }
-  .barra .dentro { max-width: 1120px; margin: 0 auto; padding: 8px 16px; display: flex; align-items: center; gap: 16px; }
+  .barra .dentro { max-width: 1320px; margin: 0 auto; padding: 8px 16px; display: flex; align-items: center; gap: 16px; }
   .barra img { height: 52px; width: auto; display: block; }
   .barra h1 { margin: 0; font-size: 18px; font-weight: 650; color: var(--verde); line-height: 1.2; }
   .barra p { margin: 2px 0 0; font-size: 12.5px; color: var(--suave); }
@@ -26,7 +26,8 @@
   .barra .cub-status a { color: inherit; }
   @media (max-width: 720px) { .barra .cub-status { display: none; } .barra img { height: 40px; } }
 
-  main { max-width: 1120px; margin: 0 auto; padding: 20px 16px 48px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  main { max-width: 1320px; margin: 0 auto; padding: 20px 16px 48px; display: grid; grid-template-columns: minmax(320px, 440px) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .coluna { display: grid; gap: 20px; min-width: 0; }
   @media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); } }
 
   .cartao { background: var(--papel); border: 1px solid var(--linha); border-radius: 12px; padding: 20px; box-shadow: 0 1px 2px rgba(20, 50, 30, .05); }
@@ -60,7 +61,6 @@
   .afixo.prefixo span { left: 12px; }
 
   /* ---------- resultado ---------- */
-  @media (min-width: 861px) { .resultado { position: sticky; top: 16px; } }
   .passo { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 10px 0; border-bottom: 1px dashed var(--linha); }
   .passo .nome { font-weight: 600; font-size: 14px; }
   .passo .conta { grid-column: 1; font-size: 12.5px; color: var(--suave); font-variant-numeric: tabular-nums; }
@@ -79,9 +79,9 @@
   .aviso.ativo { display: block; }
 
   /* ---------- pré-visualização ---------- */
-  .previa { grid-column: 1 / -1; min-width: 0; }
+  .previa { min-width: 0; }
   .previa summary { cursor: pointer; font-weight: 600; color: var(--verde); padding: 4px 0; }
-  .previa .rolagem { overflow-x: auto; margin-top: 12px; padding: 16px; background: #dfe5e1; border-radius: 10px; }
+  .previa .rolagem { margin-top: 12px; padding: 16px; background: #dfe5e1; border-radius: 10px; }
   .previa .pagina { margin: 0 auto; box-shadow: 0 2px 10px rgba(0, 0, 0, .18); }
 
   /* ---------- documento (folha A4) ---------- */
@@ -126,11 +126,11 @@
     /* margem 0 na página: o navegador não imprime URL/data; as margens ficam no padding da .pagina */
     @page { size: A4 portrait; margin: 0; }
     body { background: #fff; }
-    .barra, main > .cartao:not(.previa), .previa summary { display: none !important; }
+    .barra, .coluna, .previa summary { display: none !important; }
     main { display: block; padding: 0; max-width: none; }
     .previa { border: 0; padding: 0; box-shadow: none; border-radius: 0; }
     .previa .rolagem { display: block !important; overflow: visible; margin: 0; padding: 0; background: none; }
-    .previa .pagina { box-shadow: none; margin: 0; height: 296mm; min-height: 0; overflow: hidden; }
+    .previa .pagina { box-shadow: none; margin: 0; zoom: 1 !important; height: 296mm; min-height: 0; overflow: hidden; }
   }
 </style>
 </head>
@@ -148,6 +148,7 @@
 
 <main>
   <!-- ===== Entrada ===== -->
+  <div class="coluna">
   <form class="cartao" id="form" autocomplete="off" onsubmit="return false">
     <h2><span class="n">1</span> Dados da obra</h2>
 
@@ -187,6 +188,7 @@
       <div class="campo">
         <label for="fator">% de cálculo</label>
         <div class="afixo sufixo"><input id="fator" type="text" inputmode="numeric" data-mascara><span>%</span></div>
+        <div class="dica" id="fatorDica"></div>
       </div>
     </div>
   </form>
@@ -221,11 +223,12 @@
     </div>
     <div class="aviso" id="aviso"></div>
   </section>
+  </div>
 
   <!-- ===== Documento ===== -->
   <details class="cartao previa" id="previa">
     <summary>Pré-visualizar documento</summary>
-    <div class="rolagem">
+    <div class="rolagem" id="rolagem">
       <div class="pagina moderno">
         <div class="faixa"></div>
         <div class="miolo">
@@ -285,7 +288,20 @@
 (function () {
   'use strict';
   var CUB = window.CUB_DADOS || null;
-  var FATOR_PADRAO = 35;     // % de cálculo sobre o CUB
+  // % de cálculo sobre o CUB, por padrão de construção (tabela da Prefeitura).
+  var FATORES = {
+    'R 1-B': 35, 'R 1-N': 35, 'R 1-A': 35,
+    'PP 4-B': 35, 'PP 4-N': 35,
+    'R 8-B': 30, 'R 8-N': 30, 'R 8-A': 35,
+    'R 16-N': 35, 'R 16-A': 35,
+    'PIS': 30, 'RP1Q': 30,
+    'CAL 8-N': 30, 'CAL 8-A': 35,
+    'CSL 8-N': 30, 'CSL 8-A': 35,
+    'CSL 16-N': 30, 'CSL 16-A': 35,
+    'GI': 30
+  };
+  function fatorTabela() { return FATORES[$('padrao').value] || 35; }
+  function preencherFator() { $('fator').value = num(fatorTabela()); }
   var ALIQUOTA_ISS = 3;      // % – Art. 196 da LC 001/2020
   var MESES = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
   var $ = function (id) { return document.getElementById(id); };
@@ -456,13 +472,23 @@
       dica.innerHTML = 'CUB ajustado manualmente (Sinduscon-RS: R$ ' + num(tab) + '). <button type="button" id="restaurar">Restaurar</button>';
       $('restaurar').onclick = function () { preencherCub(); calcular(); };
     }
+
+    // origem do % de cálculo
+    var fd = $('fatorDica'), ft = fatorTabela();
+    fd.className = 'dica';
+    if (Math.abs(ft - fator) < 0.005) fd.textContent = 'Conforme tabela para o padrão ' + $('padrao').value + '.';
+    else {
+      fd.className = 'dica manual';
+      fd.innerHTML = 'Ajustado manualmente (tabela: ' + pct(ft) + '). <button type="button" id="restaurarFator">Restaurar</button>';
+      $('restaurarFator').onclick = function () { preencherFator(); calcular(); };
+    }
   }
 
   function valoresIniciais() {
     $('padrao').value = 'R 1-N';
     if (CUB) $('mes').value = CUB.referencia;
     $('ocupacao').value = projeto() ? projeto().ocupacao : 'RESIDENCIAL';
-    $('fator').value = num(FATOR_PADRAO);
+    preencherFator();
     preencherCub();
   }
 
@@ -490,7 +516,7 @@
   });
   $('padrao').addEventListener('change', function () {
     $('ocupacao').value = projeto() ? projeto().ocupacao : 'RESIDENCIAL';
-    preencherCub(); calcular();
+    preencherCub(); preencherFator(); calcular();
   });
   $('mes').addEventListener('change', function () { preencherCub(); calcular(); });
   $('form').addEventListener('input', function () {
@@ -508,6 +534,16 @@
   var previaAberta = false;
   window.addEventListener('beforeprint', function () { previaAberta = $('previa').open; $('previa').open = true; });
   window.addEventListener('afterprint', function () { $('previa').open = previaAberta; });
+
+  // Reduz a folha A4 (210 mm ≈ 794 px) para caber na largura da pré-visualização.
+  function ajustarPrevia() {
+    var largura = $('rolagem').clientWidth - 32;
+    if (largura > 0) document.querySelector('.pagina').style.zoom = Math.min(1, largura / 794);
+  }
+  window.addEventListener('resize', ajustarPrevia);
+  $('previa').addEventListener('toggle', ajustarPrevia);
+  if (window.matchMedia('(min-width: 861px)').matches) $('previa').open = true;   // tela dividida: já abre a folha
+  ajustarPrevia();
   $('novo').addEventListener('click', function () {
     $('proprietario').value = ''; $('area').value = '';
     valoresIniciais(); calcular();
