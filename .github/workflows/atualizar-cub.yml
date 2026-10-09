@@ -1,0 +1,48 @@
+name: Atualizar CUB/RS
+
+# Atualiza cub.js com a série histórica mais recente do CUB/RS (Sinduscon-RS).
+# O GitHub Pages republica sozinho após o commit.
+
+on:
+  schedule:
+    # 12:00 UTC = 09:00 (horário de Brasília), de segunda a sexta.
+    # O CUB sai no 1º dia útil do mês; nos demais dias a rotina não altera nada.
+    - cron: '0 12 * * 1-5'
+  workflow_dispatch: {}   # permite rodar manualmente pela aba "Actions"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: atualizar-cub
+  cancel-in-progress: false
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Gerar cub.js
+        run: python scripts/atualizar_cub.py
+
+      - name: Commit se houver mudança
+        run: |
+          if [ -z "$(git status --porcelain -- cub.js)" ]; then
+            echo "CUB sem alteração; nada a commitar."
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add cub.js
+            git commit -m "chore: atualiza CUB/RS ($(date -u +%Y-%m-%d))"
+            git push
+          fi
