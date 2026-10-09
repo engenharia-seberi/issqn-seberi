@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cálculo de ISSQN – Prefeitura Municipal de Seberi</title>
+<link rel="icon" href="assets/logo-seberi.png">
+<style>
+  :root {
+    --fundo: #f3f5f4; --papel: #fff; --tinta: #1c2b22; --suave: #5f6f66; --linha: #d9e0dc;
+    --verde: #1f6b3b; --verde-vivo: #22a455; --verde-claro: #e9f5ee;
+    --alerta: #92400e; --alerta-fundo: #fef3c7; --erro: #b42318;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fundo); color: var(--tinta); font: 15px/1.45 "Segoe UI", system-ui, -apple-system, Arial, sans-serif; }
+
+  /* ---------- barra do app ---------- */
+  .barra { background: var(--papel); border-bottom: 3px solid var(--verde); }
+  .barra .dentro { max-width: 1120px; margin: 0 auto; padding: 8px 16px; display: flex; align-items: center; gap: 16px; }
+  .barra img { height: 52px; width: auto; display: block; }
+  .barra h1 { margin: 0; font-size: 18px; font-weight: 650; color: var(--verde); line-height: 1.2; }
+  .barra p { margin: 2px 0 0; font-size: 12.5px; color: var(--suave); }
+  .barra .cub-status { margin-left: auto; text-align: right; font-size: 12px; color: var(--suave); }
+  .barra .cub-status b { display: block; font-size: 14px; color: var(--tinta); }
+  .barra .cub-status.erro b { color: var(--alerta); }
+  .barra .cub-status a { color: inherit; }
+  @media (max-width: 720px) { .barra .cub-status { display: none; } .barra img { height: 40px; } }
+
+  main { max-width: 1120px; margin: 0 auto; padding: 20px 16px 48px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); } }
+
+  .cartao { background: var(--papel); border: 1px solid var(--linha); border-radius: 12px; padding: 20px; box-shadow: 0 1px 2px rgba(20, 50, 30, .05); }
+  .cartao > h2 { margin: 0 0 14px; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+  .cartao > h2 .n { width: 24px; height: 24px; border-radius: 50%; background: var(--verde); color: #fff; font-size: 13px; display: grid; place-items: center; }
+  .secao + .secao { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--linha); }
+
+  /* ---------- campos ---------- */
+  .campo { margin-bottom: 12px; }
+  .campo:last-child { margin-bottom: 0; }
+  .campo label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .campo input, .campo select { width: 100%; height: 40px; padding: 0 12px; font: inherit; color: inherit; background: #fff; border: 1px solid #b9c4bd; border-radius: 8px; }
+  .campo input:focus, .campo select:focus { outline: 2px solid var(--verde-vivo); outline-offset: 1px; border-color: var(--verde); }
+  .campo input[readonly] { background: #f0f3f1; color: var(--suave); cursor: default; }
+  .campo.invalido input { border-color: var(--erro); background: #fff6f5; }
+  .campo .dica { font-size: 12px; color: var(--suave); margin-top: 4px; min-height: 17px; }
+  .campo .dica.manual { color: var(--alerta); }
+  .campo .dica button { font: inherit; color: var(--verde); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+  /* campos curtos lado a lado: largura para "10.000,00 m²" */
+  .linha { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+  .linha .campo { margin-bottom: 0; }
+  .campo.curto { flex: 0 0 150px; }
+  .dupla { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 480px) { .dupla { grid-template-columns: 1fr; } }
+  .afixo { position: relative; }
+  .afixo input { text-align: right; font-variant-numeric: tabular-nums; }
+  .afixo.sufixo input { padding-right: 40px; }
+  .afixo.prefixo input { padding-left: 40px; }
+  .afixo span { position: absolute; top: 50%; transform: translateY(-50%); color: var(--suave); font-size: 13px; pointer-events: none; }
+  .afixo.sufixo span { right: 12px; }
+  .afixo.prefixo span { left: 12px; }
+
+  /* ---------- resultado ---------- */
+  @media (min-width: 861px) { .resultado { position: sticky; top: 16px; } }
+  .passo { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 10px 0; border-bottom: 1px dashed var(--linha); }
+  .passo .nome { font-weight: 600; font-size: 14px; }
+  .passo .conta { grid-column: 1; font-size: 12.5px; color: var(--suave); font-variant-numeric: tabular-nums; }
+  .passo .valor { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .total { margin-top: 16px; background: var(--verde); color: #fff; border-radius: 10px; padding: 16px 18px; }
+  .total .rotulo { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .85; }
+  .total .valor { font-size: 32px; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; }
+  .total .extenso { font-size: 12.5px; margin-top: 6px; opacity: .92; text-transform: uppercase; }
+  .base-legal { font-size: 12px; color: var(--suave); margin: 12px 0 0; }
+  .acoes { display: flex; gap: 10px; margin-top: 16px; }
+  .acoes button { height: 44px; padding: 0 18px; font: inherit; font-weight: 600; border-radius: 8px; cursor: pointer; border: 1px solid var(--verde); }
+  .acoes .principal { flex: 1; background: var(--verde); color: #fff; }
+  .acoes .principal:hover { background: #185530; }
+  .acoes .secundario { background: #fff; color: var(--verde); }
+  .aviso { display: none; margin-top: 10px; font-size: 13px; color: var(--erro); }
+  .aviso.ativo { display: block; }
+
+  /* ---------- pré-visualização ---------- */
+  .previa { grid-column: 1 / -1; min-width: 0; }
+  .previa summary { cursor: pointer; font-weight: 600; color: var(--verde); padding: 4px 0; }
+  .previa .rolagem { overflow-x: auto; margin-top: 12px; padding: 16px; background: #dfe5e1; border-radius: 10px; }
+  .previa .pagina { margin: 0 auto; box-shadow: 0 2px 10px rgba(0, 0, 0, .18); }
+
+  /* ---------- documento (folha A4) ---------- */
+  .pagina { width: 210mm; min-height: 297mm; background: #fff; }
+  .pagina table { width: 100%; border-collapse: collapse; }
+  .pagina .local-data { text-align: right; margin-top: 14mm; }
+
+  /* ---------- modelo moderno ---------- */
+  .pagina.moderno { padding: 0; display: flex; flex-direction: column; font-family: "Segoe UI", Arial, Helvetica, sans-serif; font-size: 10.5pt; line-height: 1.35; color: #1c2b22; }
+  .moderno .faixa, .moderno .fecho, .moderno .demo .n { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .moderno .faixa { height: 5mm; background: linear-gradient(90deg, #1f6b3b 0 72%, #22a455 72% 100%); }
+  .moderno .miolo { flex: 1; padding: 9mm 18mm 0; }
+  .moderno .topo { display: flex; align-items: center; justify-content: space-between; padding-bottom: 5mm; border-bottom: 1.5pt solid #1f6b3b; }
+  .moderno .topo img { width: 52mm; height: auto; }
+  .moderno .titulo { text-align: right; }
+  .moderno .rot { font-size: 8pt; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #1f6b3b; }
+  .moderno .titulo .nome { font-size: 24pt; font-weight: 700; line-height: 1.05; letter-spacing: .02em; }
+  .moderno .titulo .sub { font-size: 9pt; color: #5f6f66; }
+  .moderno h4 { margin: 8mm 0 2.5mm; font-size: 8pt; letter-spacing: .14em; text-transform: uppercase; color: #1f6b3b; }
+  .moderno .grade { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; }
+  .moderno .item { border: .75pt solid #cfd8d2; border-radius: 2mm; padding: 2.5mm 3.5mm; }
+  .moderno .item.largo { grid-column: 1 / -1; }
+  .moderno .item small { display: block; font-size: 7pt; letter-spacing: .08em; text-transform: uppercase; color: #5f6f66; }
+  .moderno .item strong { display: block; font-size: 12.5pt; font-variant-numeric: tabular-nums; }
+  .moderno .item > span { display: block; font-size: 8pt; color: #5f6f66; }
+  .moderno .demo th { text-align: left; font-size: 7pt; letter-spacing: .08em; text-transform: uppercase; color: #5f6f66; font-weight: 600; padding: 0 2mm 1.5mm; border-bottom: .75pt solid #1c2b22; }
+  .moderno .demo td { padding: 3mm 2mm; border-bottom: .75pt solid #cfd8d2; font-variant-numeric: tabular-nums; }
+  .moderno .demo th:last-child, .moderno .demo .v { text-align: right; }
+  .moderno .demo .v { font-weight: 700; white-space: nowrap; }
+  .moderno .demo .mem { color: #5f6f66; }
+  .moderno .demo td.n { width: 9mm; padding-right: 0; }
+  .moderno .demo td.n { font-size: 8pt; font-weight: 700; color: #1f6b3b; }
+  .moderno .fecho { margin-top: 8mm; display: flex; align-items: center; justify-content: space-between; gap: 8mm; background: #1f6b3b; color: #fff; border-radius: 2.5mm; padding: 5mm 6mm; }
+  .moderno .fecho .rot { color: #c9ecd6; }
+  .moderno .fecho .ext { font-size: 8.5pt; margin-top: 1mm; }
+  .moderno .fecho .valor { font-size: 24pt; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .moderno .nota { margin: 4mm 0 0; font-size: 8.5pt; color: #5f6f66; }
+  .moderno .rodape { margin: 0 18mm; padding: 3mm 0 9mm; border-top: .75pt solid #cfd8d2; display: flex; justify-content: space-between; gap: 8mm; font-size: 7.5pt; line-height: 1.4; color: #5f6f66; }
+  .moderno .rodape div:last-child { text-align: right; }
+
+  @media print {
+    /* margem 0 na página: o navegador não imprime URL/data; as margens ficam no padding da .pagina */
+    @page { size: A4 portrait; margin: 0; }
+    body { background: #fff; }
+    .barra, main > .cartao:not(.previa), .previa summary { display: none !important; }
+    main { display: block; padding: 0; max-width: none; }
+    .previa { border: 0; padding: 0; box-shadow: none; border-radius: 0; }
+    .previa .rolagem { display: block !important; overflow: visible; margin: 0; padding: 0; background: none; }
+    .previa .pagina { box-shadow: none; margin: 0; height: 296mm; min-height: 0; overflow: hidden; }
+  }
+</style>
+</head>
+<body>
+
+<header class="barra">
+  <div class="dentro">
+    <img src="assets/logo-seberi.png" alt="Prefeitura de Seberi">
+    <div>
+      <h1>Cálculo de ISSQN</h1>
+    </div>
+    <div class="cub-status" id="cubStatus"></div>
+  </div>
+</header>
+
+<main>
+  <!-- ===== Entrada ===== -->
+  <form class="cartao" id="form" autocomplete="off" onsubmit="return false">
+    <h2><span class="n">1</span> Dados da obra</h2>
+
+    <div class="secao">
+      <div class="campo" id="cProprietario">
+        <label for="proprietario">Nome do proprietário</label>
+        <input id="proprietario" type="text" placeholder="Nome completo">
+      </div>
+      <div class="linha">
+        <div class="campo curto" id="cArea">
+          <label for="area">Área da construção</label>
+          <div class="afixo sufixo"><input id="area" type="text" inputmode="numeric" placeholder="0,00" data-mascara data-digitos="7"><span>m²</span></div>
+        </div>
+        <div class="campo curto">
+          <label for="ocupacao">Tipo de ocupação</label>
+          <input id="ocupacao" type="text" readonly tabindex="-1" title="Definido pelo padrão de construção">
+        </div>
+      </div>
+      <div class="campo">
+        <label for="padrao">Padrão de construção</label>
+        <select id="padrao"></select>
+      </div>
+    </div>
+
+    <div class="secao">
+      <div class="dupla">
+        <div class="campo">
+          <label for="mes">Mês de referência do CUB</label>
+          <select id="mes"></select>
+        </div>
+        <div class="campo" id="cCub">
+          <label for="cub">CUB padrão</label>
+          <div class="afixo prefixo"><span>R$</span><input id="cub" type="text" inputmode="numeric" placeholder="0,00" data-mascara></div>
+        </div>
+      </div>
+      <div class="campo"><div class="dica" id="cubDica"></div></div>
+      <div class="campo">
+        <label for="fator">% de cálculo</label>
+        <div class="afixo sufixo"><input id="fator" type="text" inputmode="numeric" data-mascara><span>%</span></div>
+      </div>
+    </div>
+  </form>
+
+  <!-- ===== Resultado ===== -->
+  <section class="cartao resultado">
+    <h2><span class="n">2</span> Resultado</h2>
+
+    <div class="passo">
+      <span class="nome">Valor por m²</span><span class="valor" id="rM2"></span>
+      <span class="conta" id="rM2c"></span>
+    </div>
+    <div class="passo">
+      <span class="nome">Base de cálculo</span><span class="valor" id="rBase"></span>
+      <span class="conta" id="rBasec"></span>
+    </div>
+    <div class="passo">
+      <span class="nome">ISS</span><span class="valor" id="rIss"></span>
+      <span class="conta" id="rIssc"></span>
+    </div>
+
+    <div class="total">
+      <div class="rotulo">ISSQN a recolher</div>
+      <div class="valor" id="rTotal"></div>
+      <div class="extenso" id="rExtenso"></div>
+    </div>
+    <p class="base-legal">Cálculo conforme Art. 196 da Lei Complementar nº 001, de 28/12/2020.</p>
+
+    <div class="acoes">
+      <button type="button" class="principal" id="gerar">Gerar PDF</button>
+      <button type="button" class="secundario" id="novo">Novo cálculo</button>
+    </div>
+    <div class="aviso" id="aviso"></div>
+  </section>
+
+  <!-- ===== Documento ===== -->
+  <details class="cartao previa" id="previa">
+    <summary>Pré-visualizar documento</summary>
+    <div class="rolagem">
+      <div class="pagina moderno">
+        <div class="faixa"></div>
+        <div class="miolo">
+          <div class="topo">
+            <img src="assets/logo-seberi.png" alt="">
+            <div class="titulo">
+              <div class="rot">Memória de cálculo</div>
+              <div class="nome">ISSQN</div>
+            </div>
+          </div>
+
+          <h4>Identificação da obra</h4>
+          <div class="grade">
+            <div class="item largo"><small>Proprietário</small><strong data-o="proprietario"></strong></div>
+            <div class="item"><small>Padrão de construção</small><strong data-o="padrao"></strong><span data-o="padraoDesc"></span></div>
+            <div class="item"><small>Tipo de ocupação</small><strong data-o="ocupacao"></strong></div>
+            <div class="item"><small>Área da construção</small><strong data-o="area"></strong></div>
+          </div>
+
+          <h4>Parâmetros</h4>
+          <div class="grade">
+            <div class="item"><small>CUB padrão</small><strong data-o="cub"></strong><span>Ref. <span data-o="mes"></span> · Sinduscon-RS</span></div>
+            <div class="item"><small>% de cálculo</small><strong data-o="fator"></strong><span>sobre o CUB</span></div>
+            <div class="item"><small>Alíquota do ISS</small><strong data-o="aliquota"></strong><span>sobre a base de cálculo</span></div>
+          </div>
+
+          <h4>Demonstrativo do cálculo</h4>
+          <table class="demo">
+            <tr><th></th><th>Etapa</th><th>Memória</th><th>Resultado</th></tr>
+            <tr><td class="n">1</td><td>Valor por m²</td><td class="mem"><span data-o="cub"></span> × <span data-o="fator"></span></td><td class="v" data-o="m2"></td></tr>
+            <tr><td class="n">2</td><td>Base de cálculo</td><td class="mem"><span data-o="m2"></span> × <span data-o="area"></span></td><td class="v" data-o="base"></td></tr>
+            <tr><td class="n">3</td><td>ISSQN</td><td class="mem"><span data-o="base"></span> × <span data-o="aliquota"></span></td><td class="v" data-o="iss"></td></tr>
+          </table>
+
+          <div class="fecho">
+            <div>
+              <div class="rot">ISSQN a recolher</div>
+              <div class="ext" data-o="extenso"></div>
+            </div>
+            <div class="valor" data-o="iss"></div>
+          </div>
+
+          <p class="nota">Cálculo conforme Art. 196 da Lei Complementar nº 001, de 28/12/2020.</p>
+          <div class="local-data" data-o="data"></div>
+        </div>
+        <div class="rodape">
+          <div><b>Prefeitura Municipal de Seberi</b> · Estado do Rio Grande do Sul<br>CNPJ 87.613.196/0001-78</div>
+          <div>Avenida General Flores da Cunha, 831 – Centro – CEP 98380-000<br>Fones: 55.3746.1122 e 55.3746.1127 · www.pmseberi.com.br</div>
+        </div>
+      </div>
+    </div>
+  </details>
+</main>
+
+<script src="cub.js"></script>
+<script>
+(function () {
+  'use strict';
+  var CUB = window.CUB_DADOS || null;
+  var FATOR_PADRAO = 35;     // % de cálculo sobre o CUB
+  var ALIQUOTA_ISS = 3;      // % – Art. 196 da LC 001/2020
+  var MESES = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------- números (padrão X.XXX,XX) ----------
+  function num(v, min, max) {
+    return v.toLocaleString('pt-BR', { minimumFractionDigits: min == null ? 2 : min, maximumFractionDigits: max == null ? 2 : max });
+  }
+  function lerNumero(texto) {
+    var n = parseFloat(String(texto || '').replace(/[^\d,]/g, '').replace(',', '.'));
+    return isFinite(n) ? n : 0;
+  }
+  function arred(v) { return Math.round((v + Number.EPSILON) * 100) / 100; }
+  function moeda(v) { return 'R$ ' + num(arred(v)); }
+  function pct(v) { return num(v, 0, 2) + '%'; }
+
+  // Máscara de centavos: os dígitos entram pela direita (8 0 6 0 -> 80,60).
+  function mascarar(el) {
+    var d = el.value.replace(/\D/g, '').replace(/^0+/, '').slice(0, parseInt(el.getAttribute('data-digitos'), 10) || 13);
+    el.value = d ? num(parseInt(d, 10) / 100) : '';
+  }
+  // Ao colar "80,6" ou "1.234,5" interpreta como número, não como dígitos soltos.
+  function colar(ev) {
+    var t = (ev.clipboardData || window.clipboardData).getData('text').trim();
+    if (!/^[\d.,\s]+$/.test(t)) return;
+    ev.preventDefault();
+    t = t.replace(/\s/g, '');
+    if (t.indexOf(',') >= 0) t = t.replace(/\./g, '').replace(',', '.');
+    else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+    var n = parseFloat(t);
+    ev.target.value = isFinite(n) && n > 0 ? num(n) : '';
+    ev.target.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  // ---------- valor por extenso ----------
+  var UNID = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
+  var DEZ = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+  var CENT = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+  function ate999(n) {
+    if (n === 100) return 'cem';
+    var p = [], r = n % 100;
+    if (n >= 100) p.push(CENT[Math.floor(n / 100)]);
+    if (r >= 20) { p.push(DEZ[Math.floor(r / 10)]); if (r % 10) p.push(UNID[r % 10]); }
+    else if (r > 0) p.push(UNID[r]);
+    return p.join(' e ');
+  }
+  function inteiroExtenso(n) {
+    if (n === 0) return 'zero';
+    var grupos = [
+      { v: Math.floor(n / 1e9) % 1000, s: 'bilhão', p: 'bilhões' },
+      { v: Math.floor(n / 1e6) % 1000, s: 'milhão', p: 'milhões' },
+      { v: Math.floor(n / 1e3) % 1000, s: 'mil', p: 'mil' },
+      { v: n % 1000, s: '', p: '' }
+    ];
+    var out = '';
+    grupos.forEach(function (g) {
+      if (!g.v) return;
+      var txt = (g.s === 'mil' && g.v === 1) ? 'mil' : (ate999(g.v) + (g.s ? ' ' + (g.v === 1 ? g.s : g.p) : ''));
+      // "e" antes do último grupo quando ele é menor que 100 ou centena exata.
+      var ligar = out && !g.s && (g.v < 100 || g.v % 100 === 0);
+      out += (out ? (ligar ? ' e ' : ' ') : '') + txt;
+    });
+    return out;
+  }
+  function extenso(valor) {
+    var cents = Math.round(arred(valor) * 100);
+    var reais = Math.floor(cents / 100), c = cents % 100, p = [];
+    if (reais > 0) {
+      var de = reais >= 1e6 && reais % 1e6 === 0 ? ' de' : '';
+      p.push(inteiroExtenso(reais) + de + (reais === 1 ? ' real' : ' reais'));
+    }
+    if (c > 0) p.push(inteiroExtenso(c) + (c === 1 ? ' centavo' : ' centavos'));
+    return p.length ? p.join(' e ') : 'zero reais';
+  }
+
+  // ---------- CUB ----------
+  function projeto() {
+    return CUB ? CUB.projetos.filter(function (x) { return x.codigo === $('padrao').value; })[0] : null;
+  }
+  function cubTabela() {
+    if (!CUB) return null;
+    var m = $('mes').value.split('-');
+    var ano = CUB.serie[m[0]];
+    var v = ano && ano[$('padrao').value] ? ano[$('padrao').value][parseInt(m[1], 10) - 1] : null;
+    return v == null ? null : v;
+  }
+  function preencherCub() {
+    var v = cubTabela();
+    $('cub').value = v == null ? '' : num(v);
+  }
+  function rotuloMes(valor) {
+    var m = valor.split('-');
+    return MESES[parseInt(m[1], 10) - 1] + '/' + m[0];
+  }
+
+  function montarListas() {
+    var padrao = $('padrao'), mes = $('mes'), status = $('cubStatus');
+    if (!CUB) {
+      // Sem cub.js: o app continua funcionando com digitação manual do CUB.
+      status.className = 'cub-status erro';
+      status.innerHTML = '<b>Tabela do CUB indisponível</b>informe o valor manualmente';
+      [['R 1-B', 'RESIDENCIAL'], ['R 1-N', 'RESIDENCIAL'], ['R 1-A', 'RESIDENCIAL']].forEach(function (c) { padrao.add(new Option(c[0], c[0])); });
+      var hoje = new Date();
+      for (var i = 1; i <= 36; i++) {
+        var d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+        var val = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        mes.add(new Option(rotuloMes(val), val));
+      }
+      return;
+    }
+    var grupos = {};
+    CUB.projetos.forEach(function (p) {
+      if (!grupos[p.ocupacao]) {
+        grupos[p.ocupacao] = document.createElement('optgroup');
+        grupos[p.ocupacao].label = p.ocupacao;
+        padrao.appendChild(grupos[p.ocupacao]);
+      }
+      grupos[p.ocupacao].appendChild(new Option(p.codigo + ' — ' + p.descricao, p.codigo));
+    });
+    Object.keys(CUB.serie).sort().reverse().forEach(function (ano) {
+      for (var i = 11; i >= 0; i--) {
+        if (CUB.serie[ano]['R 1-N'][i] == null) continue;
+        var val = ano + '-' + String(i + 1).padStart(2, '0');
+        mes.add(new Option(rotuloMes(val) + (val === CUB.referencia ? ' (mais recente)' : ''), val));
+      }
+    });
+    status.innerHTML = '<b>CUB/RS ' + rotuloMes(CUB.referencia).toLowerCase() + '</b>' +
+      '<a href="' + CUB.fonte.pdf + '" target="_blank" rel="noopener">Sinduscon-RS</a> · atualizado em ' +
+      new Date(CUB.atualizadoEm).toLocaleDateString('pt-BR');
+  }
+
+  // ---------- cálculo (igual à planilha: sem arredondar os passos intermediários) ----------
+  function calcular() {
+    var cub = lerNumero($('cub').value), fator = lerNumero($('fator').value), area = lerNumero($('area').value);
+    var m2 = cub * fator / 100, base = m2 * area, iss = base * ALIQUOTA_ISS / 100;
+    var mes = rotuloMes($('mes').value), ext = extenso(iss);
+
+    // painel de resultado
+    $('rM2').textContent = moeda(m2);
+    $('rM2c').textContent = moeda(cub) + ' × ' + pct(fator);
+    $('rBase').textContent = moeda(base);
+    $('rBasec').textContent = moeda(m2) + ' × ' + num(area) + ' m²';
+    $('rIss').textContent = moeda(iss);
+    $('rIssc').textContent = moeda(base) + ' × ' + pct(ALIQUOTA_ISS);
+    $('rTotal').textContent = moeda(iss);
+    $('rExtenso').textContent = ext;
+
+    // documento
+    var doc = {
+      proprietario: $('proprietario').value.trim().toUpperCase(),
+      padrao: $('padrao').value,
+      padraoDesc: projeto() ? projeto().descricao : '',
+      ocupacao: $('ocupacao').value,
+      area: num(area) + ' m²',
+      cub: moeda(cub), mes: mes, fator: pct(fator), aliquota: pct(ALIQUOTA_ISS),
+      m2: moeda(m2), base: moeda(base), iss: moeda(iss), extenso: ext.toUpperCase(),
+      data: 'Seberi, ' + new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }) + '.'
+    };
+    Array.prototype.forEach.call(document.querySelectorAll('[data-o]'), function (el) { el.textContent = doc[el.getAttribute('data-o')]; });
+
+    // origem do CUB
+    var dica = $('cubDica'), tab = cubTabela();
+    dica.className = 'dica';
+    if (tab == null) dica.textContent = CUB ? 'Sem valor na tabela para este padrão/mês — informe o CUB manualmente.' : 'Informe o CUB manualmente.';
+    else if (Math.abs(tab - cub) < 0.005) dica.textContent = 'CUB ' + $('padrao').value + ' de ' + mes.toLowerCase() + ', conforme Sinduscon-RS.';
+    else {
+      dica.className = 'dica manual';
+      dica.innerHTML = 'CUB ajustado manualmente (Sinduscon-RS: R$ ' + num(tab) + '). <button type="button" id="restaurar">Restaurar</button>';
+      $('restaurar').onclick = function () { preencherCub(); calcular(); };
+    }
+  }
+
+  function valoresIniciais() {
+    $('padrao').value = 'R 1-N';
+    if (CUB) $('mes').value = CUB.referencia;
+    $('ocupacao').value = projeto() ? projeto().ocupacao : 'RESIDENCIAL';
+    $('fator').value = num(FATOR_PADRAO);
+    preencherCub();
+  }
+
+  function validar() {
+    var faltas = [];
+    [['cProprietario', $('proprietario').value.trim() !== '', 'nome do proprietário'],
+     ['cArea', lerNumero($('area').value) > 0, 'área da construção'],
+     ['cCub', lerNumero($('cub').value) > 0, 'CUB padrão']].forEach(function (r) {
+      $(r[0]).classList.toggle('invalido', !r[1]);
+      if (!r[1]) faltas.push(r[2]);
+    });
+    $('aviso').textContent = faltas.length ? 'Informe: ' + faltas.join(', ') + '.' : '';
+    $('aviso').classList.toggle('ativo', faltas.length > 0);
+    return !faltas.length;
+  }
+
+  // ---------- inicialização ----------
+  montarListas();
+  valoresIniciais();
+  calcular();
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-mascara]'), function (el) {
+    el.addEventListener('input', function () { mascarar(el); });
+    el.addEventListener('paste', colar);
+  });
+  $('padrao').addEventListener('change', function () {
+    $('ocupacao').value = projeto() ? projeto().ocupacao : 'RESIDENCIAL';
+    preencherCub(); calcular();
+  });
+  $('mes').addEventListener('change', function () { preencherCub(); calcular(); });
+  $('form').addEventListener('input', function () {
+    calcular();
+    if ($('aviso').classList.contains('ativo')) validar();
+  });
+  $('gerar').addEventListener('click', function () {
+    if (!validar()) return;
+    var antes = document.title;
+    document.title = 'ISSQN - ' + $('proprietario').value.trim();   // nome sugerido do PDF
+    window.print();
+    document.title = antes;
+  });
+  // O documento fica dentro de um <details>; precisa estar aberto para sair na impressão (inclusive via Ctrl+P).
+  var previaAberta = false;
+  window.addEventListener('beforeprint', function () { previaAberta = $('previa').open; $('previa').open = true; });
+  window.addEventListener('afterprint', function () { $('previa').open = previaAberta; });
+  $('novo').addEventListener('click', function () {
+    $('proprietario').value = ''; $('area').value = '';
+    valoresIniciais(); calcular();
+    ['cProprietario', 'cArea', 'cCub'].forEach(function (id) { $(id).classList.remove('invalido'); });
+    $('aviso').classList.remove('ativo');
+    $('proprietario').focus();
+  });
+})();
+</script>
+</body>
+</html>
