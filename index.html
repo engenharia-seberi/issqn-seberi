@@ -39,9 +39,13 @@
   .campo { margin-bottom: 12px; }
   .campo:last-child { margin-bottom: 0; }
   .campo label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-  .campo input, .campo select { width: 100%; height: 40px; padding: 0 12px; font: inherit; color: inherit; background: #fff; border: 1px solid #b9c4bd; border-radius: 8px; }
+  .campo input, .campo select, .campo textarea { width: 100%; height: 40px; padding: 0 12px; font: inherit; color: inherit; background: #fff; border: 1px solid #b9c4bd; border-radius: 8px; }
   .campo input:focus, .campo select:focus { outline: 2px solid var(--verde-vivo); outline-offset: 1px; border-color: var(--verde); }
   .campo input[readonly] { background: #f0f3f1; color: var(--suave); cursor: default; }
+  .campo textarea { height: auto; min-height: 76px; padding: 8px 12px; resize: vertical; line-height: 1.4; }
+  .opcional { font-weight: 400; color: var(--suave); }
+  [hidden] { display: none !important; }
+  #ocupacao { text-transform: uppercase; }
   .campo.invalido input { border-color: var(--erro); background: #fff6f5; }
   .campo .dica { font-size: 12px; color: var(--suave); margin-top: 4px; min-height: 17px; }
   .campo .dica.manual { color: var(--alerta); }
@@ -87,7 +91,7 @@
   /* ---------- documento (folha A4) ---------- */
   .pagina { width: 210mm; min-height: 297mm; background: #fff; }
   .pagina table { width: 100%; border-collapse: collapse; }
-  .pagina .local-data { text-align: right; margin-top: 14mm; }
+  .pagina .local-data { text-align: right; margin-top: 10mm; }
 
   /* ---------- modelo moderno ---------- */
   .pagina.moderno { padding: 0; display: flex; flex-direction: column; font-family: "Segoe UI", Arial, Helvetica, sans-serif; font-size: 10.5pt; line-height: 1.35; color: #1c2b22; }
@@ -114,6 +118,9 @@
   .moderno .demo .mem { color: #5f6f66; }
   .moderno .demo td.n { width: 9mm; padding-right: 0; }
   .moderno .demo td.n { font-size: 8pt; font-weight: 700; color: #1f6b3b; }
+  .moderno .obs { margin-top: 6mm; }
+  .moderno .obs h4 { margin: 0 0 2mm; }
+  .moderno .obs p { margin: 0; padding: 3mm 3.5mm; border: .75pt solid #cfd8d2; border-radius: 2mm; white-space: pre-wrap; font-size: 10pt; }
   .moderno .fecho { margin-top: 8mm; display: flex; align-items: center; justify-content: space-between; gap: 8mm; background: #1f6b3b; color: #fff; border-radius: 2.5mm; padding: 5mm 6mm; }
   .moderno .fecho .rot { color: #c9ecd6; }
   .moderno .fecho .ext { font-size: 8.5pt; margin-top: 1mm; }
@@ -164,7 +171,8 @@
         </div>
         <div class="campo curto">
           <label for="ocupacao">Tipo de ocupação</label>
-          <input id="ocupacao" type="text" readonly tabindex="-1" title="Definido pelo padrão de construção">
+          <input id="ocupacao" type="text" list="ocupacoes" title="Sugerido pelo padrão de construção; pode ser alterado">
+          <datalist id="ocupacoes"><option value="RESIDENCIAL"><option value="COMERCIAL"><option value="INDUSTRIAL"><option value="MISTA"></datalist>
         </div>
       </div>
       <div class="campo">
@@ -189,6 +197,14 @@
         <label for="fator">% de cálculo</label>
         <div class="afixo sufixo"><input id="fator" type="text" inputmode="numeric" data-mascara><span>%</span></div>
         <div class="dica" id="fatorDica"></div>
+      </div>
+    </div>
+
+    <div class="secao">
+      <div class="campo">
+        <label for="obs">Observações <span class="opcional">(opcional)</span></label>
+        <textarea id="obs" rows="3" maxlength="400" placeholder="Sai no PDF antes do valor a recolher"></textarea>
+        <div class="dica" id="obsDica"></div>
       </div>
     </div>
   </form>
@@ -250,7 +266,7 @@
 
           <h4>Parâmetros</h4>
           <div class="grade">
-            <div class="item"><small>CUB padrão</small><strong data-o="cub"></strong><span>Ref. <span data-o="mes"></span> · Sinduscon-RS</span></div>
+            <div class="item"><small>CUB padrão</small><strong data-o="cub"></strong><span id="docRef">Ref. <span data-o="mes"></span> · Sinduscon-RS</span></div>
             <div class="item"><small>% de cálculo</small><strong data-o="fator"></strong><span>sobre o CUB</span></div>
             <div class="item"><small>Alíquota do ISS</small><strong data-o="aliquota"></strong><span>sobre a base de cálculo</span></div>
           </div>
@@ -262,6 +278,11 @@
             <tr><td class="n">2</td><td>Base de cálculo</td><td class="mem"><span data-o="m2"></span> × <span data-o="area"></span></td><td class="v" data-o="base"></td></tr>
             <tr><td class="n">3</td><td>ISSQN</td><td class="mem"><span data-o="base"></span> × <span data-o="aliquota"></span></td><td class="v" data-o="iss"></td></tr>
           </table>
+
+          <div class="obs" id="docObs" hidden>
+            <h4>Observações</h4>
+            <p data-o="obs"></p>
+          </div>
 
           <div class="fecho">
             <div>
@@ -454,13 +475,19 @@
       proprietario: $('proprietario').value.trim().toUpperCase(),
       padrao: $('padrao').value,
       padraoDesc: projeto() ? projeto().descricao : '',
-      ocupacao: $('ocupacao').value,
+      ocupacao: $('ocupacao').value.trim().toUpperCase(),
+      obs: $('obs').value.trim(),
       area: num(area) + ' m²',
       cub: moeda(cub), mes: mes, fator: pct(fator), aliquota: pct(ALIQUOTA_ISS),
       m2: moeda(m2), base: moeda(base), iss: moeda(iss), extenso: ext.toUpperCase(),
       data: 'Seberi, ' + new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }) + '.'
     };
     Array.prototype.forEach.call(document.querySelectorAll('[data-o]'), function (el) { el.textContent = doc[el.getAttribute('data-o')]; });
+    $('docObs').hidden = !doc.obs;
+    avisarObs();
+    // CUB digitado à mão não leva a referência do Sinduscon-RS no PDF.
+    var cubTab = cubTabela();
+    $('docRef').hidden = cubTab == null || Math.abs(cubTab - cub) >= 0.005;
 
     // origem do CUB
     var dica = $('cubDica'), tab = cubTabela();
@@ -492,6 +519,20 @@
     preencherCub();
   }
 
+  // A folha tem altura de uma página A4 (297 mm ≈ 1123 px); o que passar disso seria cortado no PDF.
+  function excedePagina() {
+    var p = document.querySelector('.pagina');
+    return p.scrollHeight > 1123;
+  }
+  function avisarObs() {
+    var n = $('obs').value.length, d = $('obsDica');
+    var longo = $('previa').open && excedePagina();
+    d.className = longo ? 'dica manual' : 'dica';
+    d.textContent = longo ? 'Texto longo demais: o documento passaria de uma página. Reduza as observações.'
+      : (n ? n + ' de 400 caracteres.' : '');
+    return longo;
+  }
+
   function validar() {
     var faltas = [];
     [['cProprietario', $('proprietario').value.trim() !== '', 'nome do proprietário'],
@@ -500,9 +541,13 @@
       $(r[0]).classList.toggle('invalido', !r[1]);
       if (!r[1]) faltas.push(r[2]);
     });
-    $('aviso').textContent = faltas.length ? 'Informe: ' + faltas.join(', ') + '.' : '';
-    $('aviso').classList.toggle('ativo', faltas.length > 0);
-    return !faltas.length;
+    $('previa').open = true;
+    var longo = avisarObs();
+    var msg = faltas.length ? 'Informe: ' + faltas.join(', ') + '.' : '';
+    if (longo) msg += (msg ? ' ' : '') + 'Reduza as observações para o documento caber em uma página.';
+    $('aviso').textContent = msg;
+    $('aviso').classList.toggle('ativo', !!msg);
+    return !msg;
   }
 
   // ---------- inicialização ----------
@@ -545,7 +590,7 @@
   if (window.matchMedia('(min-width: 861px)').matches) $('previa').open = true;   // tela dividida: já abre a folha
   ajustarPrevia();
   $('novo').addEventListener('click', function () {
-    $('proprietario').value = ''; $('area').value = '';
+    $('proprietario').value = ''; $('area').value = ''; $('obs').value = '';
     valoresIniciais(); calcular();
     ['cProprietario', 'cArea', 'cCub'].forEach(function (id) { $(id).classList.remove('invalido'); });
     $('aviso').classList.remove('ativo');
